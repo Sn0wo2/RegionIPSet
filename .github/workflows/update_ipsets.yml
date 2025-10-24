@@ -63,6 +63,7 @@ jobs:
 
       - name: Upload Individual Release Assets
         run: |
+          git checkout ipsets
           for file in ./ipsets/*; do
             asset_name=$(basename "$file")
             gh release upload ${{ steps.date.outputs.date }} "$file" --clobber
