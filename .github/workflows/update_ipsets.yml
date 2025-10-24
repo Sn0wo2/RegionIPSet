@@ -1,4 +1,4 @@
-name: Update IP Sets and README
+name: Run RegionIPSet
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Run main.go and create ipsets
+      - name: Run RegionIPSet
         run: go run main.go
 
       - name: Commit and push README.md
@@ -62,9 +62,9 @@ jobs:
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git checkout --orphan ipsets-orphan
+          git checkout -b ipsets
           git rm -rf .
           cp -r ipsets/* .
           git add -f *.ipset
           git commit -m "chore(ipsets): update ipsets"
-          git push -f origin ipsets-orphan:ipsets
+          git push -f origin ipsets
