@@ -25,27 +25,8 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Run main.go
+      - name: Run main.go and create ipsets
         run: go run main.go
-
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name 'github-actions[bot]'
-          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          
-          git checkout --orphan ipsets-orphan
-          git rm -rf .
-          git add -f ipsets/*
-          git commit -m "chore(ipsets): update ipsets"
-          git push -f origin ipsets-orphan:ipsets
-          
-          git checkout main
-          git pull origin main
-          go run main.go
-          git add README.md
-          git commit -m "chore(readme): update" || echo "No changes to commit"
-          git push origin main
 
       - name: Get current date
         id: date
@@ -65,7 +46,23 @@ jobs:
 
       - name: Upload Release Assets
         run: |
-          git checkout ipsets
           gh release upload ${{ steps.date.outputs.date }} ./ipsets/*.ipset --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and push changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          git checkout --orphan ipsets-orphan
+          git rm -rf .
+          git add -f ipsets/*
+          git commit -m "chore(ipsets): update ipsets"
+          git push -f origin ipsets-orphan:ipsets
+          
+          git checkout main
+          git pull origin main
+          git add README.md
+          git commit -m "chore(readme): update" || echo "No changes to commit"
+          git push origin main
