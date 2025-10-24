@@ -334,7 +334,7 @@ func generateSummary(records []IPRecord) {
 		panic(err)
 	}
 
-	if _, err := fmt.Fprintf(writer, "Generate at: %s\n\n", time.Now().Format("2006-01-02 15:04:05")); err != nil {
+	if _, err := fmt.Fprintf(writer, "Generate at: %s (UTC+8)\n\n", time.Now().In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05")); err != nil {
 		panic(err)
 	}
 
