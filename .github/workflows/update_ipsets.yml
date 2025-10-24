@@ -34,7 +34,7 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git fetch
           git checkout ipsets || git checkout -b ipsets
-          git add ipsets/
+          git add -f ipsets/
           git commit -m "chore(ipsets): update" || echo "No changes to commit"
           git push origin ipsets
 
