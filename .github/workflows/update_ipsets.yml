@@ -48,6 +48,7 @@ jobs:
           git add README.md
           git commit -m "chore(readme) update" || echo "No changes to commit"
           git push origin main
+          mv ../ipsets .
 
       - name: Get current date
         id: date
