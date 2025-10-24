@@ -36,11 +36,12 @@ jobs:
           
           git checkout --orphan ipsets-orphan
           git rm -rf .
-          git add -f ipsets
+          git add -f ipsets/*
           git commit -m "chore(ipsets): update ipsets"
           git push -f origin ipsets-orphan:ipsets
           
           git checkout main
+          git pull origin main
           git add README.md
           git commit -m "chore(readme): update" || echo "No changes to commit"
           git push origin main
