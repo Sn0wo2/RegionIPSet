@@ -29,26 +29,21 @@ jobs:
         run: go run main.go
 
 
-      - name: Commit and push ipsets to ipsets branch
+      - name: Commit and push changes
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          mv ipsets ../
+          
           git checkout --orphan ipsets-orphan
           git rm -rf .
-          git clean -fd
-          mv ../ipsets .
           git add -f ipsets
-          git commit -m "chore(ipsets): update ipsets" || echo "No changes to commit"
+          git commit -m "chore(ipsets): update ipsets"
           git push -f origin ipsets-orphan:ipsets
-
-      - name: Commit and push README.md to main branch
-        run: |
+          
           git checkout main
           git add README.md
-          git commit -m "chore(readme) update" || echo "No changes to commit"
+          git commit -m "chore(readme): update" || echo "No changes to commit"
           git push origin main
-          mv ../ipsets .
 
       - name: Get current date
         id: date
