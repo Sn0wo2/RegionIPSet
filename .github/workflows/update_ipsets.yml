@@ -28,15 +28,12 @@ jobs:
       - name: Run main.go
         run: go run main.go
 
-      - name: Zip the ipsets directory
-        run: zip -r ipsets.zip ./ipsets
 
       - name: Commit and push ipsets to ipsets branch
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           mv ipsets ../
-          mv ipsets.zip ../
           git checkout --orphan ipsets-orphan
           git rm -rf .
           git clean -fd
@@ -44,7 +41,6 @@ jobs:
           git add -f ipsets
           git commit -m "chore(ipsets): update ipsets" || echo "No changes to commit"
           git push -f origin ipsets-orphan:ipsets
-          mv ../ipsets.zip .
 
       - name: Commit and push README.md to main branch
         run: |
@@ -55,7 +51,7 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
@@ -69,12 +65,11 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
+      - name: Upload Individual Release Assets
+        run: |
+          for file in ./ipsets/*; do
+            asset_name=$(basename "$file")
+            gh release upload ${{ steps.date.outputs.date }} "$file" --clobber
+          done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./ipsets.zip
-          asset_name: ipsets.zip
-          asset_content_type: application/zip
