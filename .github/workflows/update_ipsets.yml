@@ -1,0 +1,71 @@
+name: Update IP Sets and README
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run main.go
+        run: go run main.go
+
+      - name: Commit and push ipsets to ipsets branch
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git fetch
+          git checkout ipsets || git checkout -b ipsets
+          git add ipsets/
+          git commit -m "chore(ipsets): update" || echo "No changes to commit"
+          git push origin ipsets
+
+      - name: Commit and push README.md to main branch
+        run: |
+          git checkout main
+          git add README.md
+          git commit -m "chore(readme) update" || echo "No changes to commit"
+          git push origin main
+
+      - name: Zip the ipsets directory
+        run: zip -r ipsets.zip ./ipsets
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}
+          release_name: Release ${{ github.run_number }}
+          body: "Automated release with updated IP sets."
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./ipsets.zip
+          asset_name: ipsets.zip
+          asset_content_type: application/zip
