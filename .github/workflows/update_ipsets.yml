@@ -28,15 +28,21 @@ jobs:
       - name: Run main.go
         run: go run main.go
 
+      - name: Zip the ipsets directory
+        run: zip -r ipsets.zip ./ipsets
+
       - name: Commit and push ipsets to ipsets branch
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git fetch
-          git checkout ipsets || git checkout -b ipsets
-          git add -f ipsets/
-          git commit -m "chore(ipsets): update" || echo "No changes to commit"
-          git push origin ipsets
+          mv ipsets ../
+          git checkout --orphan ipsets-orphan
+          git rm -rf .
+          git clean -fd
+          mv ../ipsets .
+          git add -f ipsets
+          git commit -m "chore(ipsets): update ipsets" || echo "No changes to commit"
+          git push -f origin ipsets-orphan:ipsets
 
       - name: Commit and push README.md to main branch
         run: |
@@ -44,9 +50,6 @@ jobs:
           git add README.md
           git commit -m "chore(readme) update" || echo "No changes to commit"
           git push origin main
-
-      - name: Zip the ipsets directory
-        run: zip -r ipsets.zip ./ipsets
 
       - name: Create Release
         id: create_release
