@@ -17,7 +17,9 @@ import (
 const (
 	apnicURL  = "https://ftp.apnic.net/stats/apnic/delegated-apnic-latest"
 	outputDir = "ipsets"
-	userAgent = "APNIC-IPSet-Generator/0.0.0"
+
+	ipv4Type = "ipv4"
+	ipv6Type = "ipv6"
 )
 
 type IPRecord struct {
@@ -34,6 +36,7 @@ func main() {
 	if err := cleanupOutputDir(); err != nil {
 		panic(err)
 	}
+
 	data, err := downloadAPNICData()
 	if err != nil {
 		panic(err)
@@ -47,12 +50,15 @@ func main() {
 	sort.Slice(records, func(i, j int) bool {
 		isIUnknown := strings.EqualFold(records[i].Region, "unknown")
 		isJUnknown := strings.EqualFold(records[j].Region, "unknown")
+
 		if isIUnknown {
 			return false
 		}
+
 		if isJUnknown {
 			return true
 		}
+
 		return records[i].Region < records[j].Region
 	})
 
@@ -66,11 +72,12 @@ func cleanupOutputDir() error {
 		return err
 	}
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		return err
 	}
 
 	fmt.Printf("Cleanup path: %s\n", outputDir)
+
 	return nil
 }
 
@@ -79,7 +86,10 @@ func downloadAPNICData() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		_ = resp.Body.Close() // #nosec errcheck
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("bad status code: %s", resp.Status)
@@ -108,10 +118,12 @@ func parseAPNICData(data string) ([]IPRecord, error) {
 		if len(fields) < 7 {
 			continue
 		}
+
 		for i, f := range fields {
 			if f == "" {
 				fmt.Printf("LINE [%s] INDEX %d FIELD EMPTY!\n", line, i)
 				fields[i] = "UNKNOWN"
+
 				break
 			}
 		}
@@ -129,7 +141,7 @@ func parseAPNICData(data string) ([]IPRecord, error) {
 			record.Value = value
 		}
 
-		if record.Type == "ipv4" || record.Type == "ipv6" {
+		if record.Type == ipv4Type || record.Type == ipv6Type {
 			records = append(records, record)
 		}
 	}
@@ -147,7 +159,7 @@ func generateIPSets(records []IPRecord) {
 		regionMap[record.Region] = append(regionMap[record.Region], record)
 	}
 
-	var regions []string
+	regions := make([]string, 0, len(regionMap))
 	for r := range regionMap {
 		regions = append(regions, r)
 	}
@@ -155,26 +167,30 @@ func generateIPSets(records []IPRecord) {
 	sort.Slice(regions, func(i, j int) bool {
 		isIUnknown := strings.EqualFold(regions[i], "unknown")
 		isJUnknown := strings.EqualFold(regions[j], "unknown")
+
 		if isIUnknown {
 			return false
 		}
+
 		if isJUnknown {
 			return true
 		}
+
 		return regions[i] < regions[j]
 	})
 
 	for _, region := range regions {
 		regionRecords := regionMap[region]
+
 		ipv4Filename := filepath.Join(outputDir, strings.ToLower(region)+"_v4.ipset")
-		if created, err := generateIPSetFile(ipv4Filename, "ipv4", regionRecords); err != nil {
+		if created, err := generateIPSetFile(ipv4Filename, ipv4Type, regionRecords); err != nil {
 			panic(err)
 		} else if created {
 			fmt.Printf("%s\n", ipv4Filename)
 		}
 
 		ipv6Filename := filepath.Join(outputDir, strings.ToLower(region)+"_v6.ipset")
-		if created, err := generateIPSetFile(ipv6Filename, "ipv6", regionRecords); err != nil {
+		if created, err := generateIPSetFile(ipv6Filename, ipv6Type, regionRecords); err != nil {
 			panic(err)
 		} else if created {
 			fmt.Printf("%s\n", ipv6Filename)
@@ -186,6 +202,7 @@ func generateIPSets(records []IPRecord) {
 
 func generateIPSetFile(filename, ipType string, records []IPRecord) (bool, error) {
 	var lines []string
+
 	for _, record := range records {
 		if record.Type == ipType {
 			cidr, err := ipToCIDR(record.StartIP, record.Value, ipType)
@@ -199,19 +216,26 @@ func generateIPSetFile(filename, ipType string, records []IPRecord) (bool, error
 		return false, nil
 	}
 
-	file, err := os.Create(filename)
+	file, err := os.Create(filename) // #nosec G304
 	if err != nil {
-		return false, err
+		panic(err)
 	}
-	defer file.Close()
+
+	defer func() {
+		_ = file.Close() // #nosec errcheck
+	}()
 
 	writer := bufio.NewWriter(file)
 	for _, line := range lines {
 		if _, err := writer.WriteString(line + "\n"); err != nil {
-			return false, err
+			panic(err)
 		}
 	}
-	writer.Flush()
+
+	if err := writer.Flush(); err != nil {
+		panic(err)
+	}
+
 	return true, nil
 }
 
@@ -221,12 +245,12 @@ func ipToCIDR(startIP string, count uint64, ipType string) (string, error) {
 	}
 
 	var maskBits int
-	if ipType == "ipv4" {
+	if ipType == ipv4Type {
 		maskBits = 32 - log2(count)
 		if maskBits < 0 || maskBits > 32 {
 			return "", fmt.Errorf("bad ipv4 mask: %d", maskBits)
 		}
-	} else { // ipv6
+	} else {
 		maskBits = 128 - log2(count)
 		if maskBits < 0 || maskBits > 128 {
 			return "", fmt.Errorf("bad ipv6 mask: %d", maskBits)
@@ -242,24 +266,32 @@ func log2(n uint64) int {
 	}
 
 	bits := 0
+
 	for n > 1 {
 		n >>= 1
 		bits++
 	}
+
 	return bits
 }
 
 func generateSummary(records []IPRecord) {
 	summaryFile := filepath.Join(filepath.Join(outputDir, "../"), "README.md")
 
-	file, err := os.Create(summaryFile)
+	file, err := os.Create(summaryFile) // #nosec G304
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
+
+	defer func() {
+		_ = file.Close() // #nosec errcheck
+	}()
 
 	writer := bufio.NewWriter(file)
-	defer writer.Flush()
+
+	defer func() {
+		_ = writer.Flush() // #nosec errcheck
+	}()
 
 	regionStats := make(map[string]struct {
 		ipv4 int
@@ -268,64 +300,103 @@ func generateSummary(records []IPRecord) {
 
 	for _, record := range records {
 		stats := regionStats[record.Region]
-		if record.Type == "ipv4" {
+		switch record.Type {
+		case ipv4Type:
 			stats.ipv4++
-		} else if record.Type == "ipv6" {
+		case ipv6Type:
 			stats.ipv6++
 		}
+
 		regionStats[record.Region] = stats
 	}
 
-	var regions []string
+	regions := make([]string, 0, len(regionStats))
 	for region := range regionStats {
 		regions = append(regions, region)
 	}
+
 	sort.Slice(regions, func(i, j int) bool {
 		isIUnknown := strings.EqualFold(regions[i], "unknown")
 		isJUnknown := strings.EqualFold(regions[j], "unknown")
+
 		if isIUnknown {
 			return false
 		}
+
 		if isJUnknown {
 			return true
 		}
+
 		return regions[i] < regions[j]
 	})
 
-	writer.WriteString("# APNIC IP\n\n")
-	writer.WriteString(fmt.Sprintf("Generate at: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
-	writer.WriteString("| Country/Region | IPv4 | IPv6 | Total |\n")
-	writer.WriteString("|----------------|------|------|-------|\n")
+	if _, err := writer.WriteString("# APNIC IP\n\n"); err != nil {
+		panic(err)
+	}
+
+	if _, err := fmt.Fprintf(writer, "Generate at: %s\n\n", time.Now().Format("2006-01-02 15:04:05")); err != nil {
+		panic(err)
+	}
+
+	if _, err := writer.WriteString("| Country/Region | IPv4 | IPv6 | Total |\n"); err != nil {
+		panic(err)
+	}
+
+	if _, err := writer.WriteString("|----------------|------|------|-------|\n"); err != nil {
+		panic(err)
+	}
 
 	totalIPv4, totalIPv6 := 0, 0
+
 	for _, region := range regions {
 		stats := regionStats[region]
+
 		total := stats.ipv4 + stats.ipv6
-		writer.WriteString(fmt.Sprintf("| %s | %d | %d | %d |\n",
-			region, stats.ipv4, stats.ipv6, total))
+		if _, err := fmt.Fprintf(writer, "| %s | %d | %d | %d |\n",
+			region, stats.ipv4, stats.ipv6, total); err != nil {
+			panic(err)
+		}
+
 		totalIPv4 += stats.ipv4
 		totalIPv6 += stats.ipv6
 	}
 
-	writer.WriteString(fmt.Sprintf("| **Total** | **%d** | **%d** | **%d** |\n",
-		totalIPv4, totalIPv6, totalIPv4+totalIPv6))
+	if _, err := fmt.Fprintf(writer, "| **Total** | **%d** | **%d** | **%d** |\n",
+		totalIPv4, totalIPv6, totalIPv4+totalIPv6); err != nil {
+		panic(err)
+	}
 
-	writer.WriteString("\n## Files\n\n")
+	if _, err := writer.WriteString("\n## Files\n\n"); err != nil {
+		panic(err)
+	}
+
 	files, _ := filepath.Glob(filepath.Join(outputDir, "*.ipset"))
 	sort.Slice(files, func(i, j int) bool {
 		isIUnknown := strings.Contains(files[i], "unknown")
 		isJUnknown := strings.Contains(files[j], "unknown")
+
 		if isIUnknown {
 			return false
 		}
+
 		if isJUnknown {
 			return true
 		}
+
 		return files[i] < files[j]
 	})
-	writer.WriteString("```\n")
-	for _, file := range files {
-		writer.WriteString(filepath.Base(file) + "\n")
+
+	if _, err := writer.WriteString("```\n"); err != nil {
+		panic(err)
 	}
-	writer.WriteString("```")
+
+	for _, file := range files {
+		if _, err := writer.WriteString(filepath.Base(file) + "\n"); err != nil {
+			panic(err)
+		}
+	}
+
+	if _, err := writer.WriteString("```"); err != nil {
+		panic(err)
+	}
 }
