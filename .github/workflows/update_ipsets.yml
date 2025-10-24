@@ -61,12 +61,10 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Upload Individual Release Assets
+      - name: Upload Release Assets
         run: |
           git checkout ipsets
-          for file in ./ipsets/*; do
-            asset_name=$(basename "$file")
-            gh release upload ${{ steps.date.outputs.date }} "$file" --clobber
-          done
+          files=$(ls ./ipsets/*.ipset | (grep -v unknown | sort -t_ -k1,1 -k2,2V; grep unknown | sort -t_ -k1,1 -k2,2V))
+          gh release upload ${{ steps.date.outputs.date }} $files --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
