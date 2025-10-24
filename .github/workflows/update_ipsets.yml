@@ -36,6 +36,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           mv ipsets ../
+          mv ipsets.zip ../
           git checkout --orphan ipsets-orphan
           git rm -rf .
           git clean -fd
@@ -43,6 +44,7 @@ jobs:
           git add -f ipsets
           git commit -m "chore(ipsets): update ipsets" || echo "No changes to commit"
           git push -f origin ipsets-orphan:ipsets
+          mv ../ipsets.zip .
 
       - name: Commit and push README.md to main branch
         run: |
@@ -51,15 +53,19 @@ jobs:
           git commit -m "chore(readme) update" || echo "No changes to commit"
           git push origin main
 
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.run_number }}
-          release_name: Release ${{ github.run_number }}
-          body: "Automated release with updated IP sets."
+          tag_name: ${{ steps.date.outputs.date }}
+          release_name: ${{ steps.date.outputs.date }}
+          body: "Ciallo～(∠・ω< )⌒★"
           draft: false
           prerelease: false
 
