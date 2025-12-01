@@ -1,6 +1,6 @@
 # APNIC IP
 
-Generate at: 2025-11-30 09:19:11 (UTC+8)
+Generate at: 2025-12-01 09:23:33 (UTC+8)
 
 | Country/Region | IPv4 | IPv6 | Total |
 |----------------|------|------|-------|
